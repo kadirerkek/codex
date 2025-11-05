@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users can read and write their own data. Admins can read and write any user's data.
+    match /users/{uid} {
+      allow read, write: if request.auth.uid == uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Projects can be read and written by assigned users or admins.
+    match /projects/{projectId} {
+      allow read, write: if request.auth.uid in resource.data.assignedTo || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+      // Comments can be read by anyone who can read the project.
+      // Comments can be written by any authenticated user.
+      match /comments/{commentId} {
+        allow read: if request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.assignedTo || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        allow create: if request.auth != null;
+      }
+    }
+
+    // Files can be read and written by their owner or an admin.
+    match /files/{fileId} {
+      allow read, write: if request.auth.uid == resource.data.ownerId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Folders can be read and written by their owner or an admin.
+    match /folders/{folderId} {
+      allow read, write: if request.auth.uid == resource.data.ownerId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Chats can be read and written by participants.
+    match /chats/{chatId} {
+      allow read, write: if request.auth.uid in resource.data.participants;
+
+      // Messages can be created by any authenticated user.
+      match /messages/{messageId} {
+        allow create: if request.auth != null;
+      }
+    }
+  }
+}
